@@ -390,6 +390,20 @@ h1 {
   font-size: 12px;
 }
 
+.axis-time {
+  fill: #344054;
+  font-weight: 650;
+}
+
+.axis-day {
+  font-size: 11px;
+}
+
+.tick-line {
+  stroke: #aab4bf;
+  stroke-width: 1;
+}
+
 .route-line {
   fill: none;
   stroke-linecap: round;

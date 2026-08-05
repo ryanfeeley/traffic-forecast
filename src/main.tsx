@@ -43,6 +43,18 @@ function sheetDatetime(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+function axisTickLabel(datetime: string) {
+  const date = new Date(datetime.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) {
+    return { time: datetime, day: "" };
+  }
+
+  return {
+    time: date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase(),
+    day: date.toLocaleDateString([], { weekday: "short", month: "numeric", day: "numeric" }).toLowerCase(),
+  };
+}
+
 function secondsToMinutes(value: string) {
   return Math.round(Number(value.replace(/s$/, "")) / 60);
 }
@@ -342,8 +354,8 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
     const min = Math.max(0, Math.floor((Math.min(...values) - 5) / 5) * 5);
     const max = Math.ceil((Math.max(...values) + 5) / 5) * 5;
     const width = 920;
-    const height = 460;
-    const pad = { top: 26, right: 28, bottom: 58, left: 56 };
+    const height = 480;
+    const pad = { top: 26, right: 28, bottom: 78, left: 56 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
     const span = Math.max(1, max - min);
@@ -395,7 +407,14 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
       };
     });
 
-    const tickIndexes = Array.from(new Set([0, Math.floor((rows.length - 1) / 2), rows.length - 1]));
+    const maxTicks = Math.min(9, rows.length);
+    const tickIndexes = Array.from(
+      new Set(
+        Array.from({ length: maxTicks }, (_, index) =>
+          Math.round(index * ((rows.length - 1) / Math.max(1, maxTicks - 1)))
+        )
+      )
+    );
 
     return {
       width,
@@ -482,10 +501,17 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
           <text x={18} y={chart.pad.top + 10} className="axis-title">min</text>
           {chart.tickIndexes.map((index) => {
             const x = chart.pad.left + (rows.length === 1 ? 0 : (index / (rows.length - 1)) * chart.plotWidth);
+            const label = axisTickLabel(rows[index]?.datetime ?? "");
             return (
-              <text key={index} x={x} y={chart.height - 24} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"} className="axis-label">
-                {rows[index]?.datetime}
-              </text>
+              <g key={index}>
+                <line x1={x} x2={x} y1={chart.pad.top + chart.plotHeight} y2={chart.pad.top + chart.plotHeight + 6} className="tick-line" />
+                <text x={x} y={chart.height - 42} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"} className="axis-label axis-time">
+                  {label.time}
+                </text>
+                <text x={x} y={chart.height - 24} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"} className="axis-label axis-day">
+                  {label.day}
+                </text>
+              </g>
             );
           })}
           <path d={chart.toDestinationBand} className="route-band destination-band" />
