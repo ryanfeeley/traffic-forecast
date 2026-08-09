@@ -344,6 +344,7 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
   const [hover, setHover] = useState<{
     x: number;
     y: number;
+    mode: "horizontal" | "vertical";
     datetime: string;
     route: string;
     range: RouteRange;
@@ -472,6 +473,124 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
     };
   }, [destination, origin, rows]);
 
+  const verticalChart = useMemo(() => {
+    const values = numericValues(rows);
+    const min = Math.max(0, Math.floor((Math.min(...values) - 5) / 5) * 5);
+    const max = Math.ceil((Math.max(...values) + 5) / 5) * 5;
+    const width = 360;
+    const rowGap = 34;
+    const height = Math.max(520, 120 + (rows.length - 1) * rowGap);
+    const pad = { top: 26, right: 18, bottom: 28, left: 78 };
+    const plotWidth = width - pad.left - pad.right;
+    const plotHeight = height - pad.top - pad.bottom;
+    const span = Math.max(1, max - min);
+
+    function x(value: number) {
+      return pad.left + ((value - min) / span) * plotWidth;
+    }
+
+    function y(index: number) {
+      return pad.top + (rows.length === 1 ? 0 : (index / (rows.length - 1)) * plotHeight);
+    }
+
+    function bestPathFor(key: "toDestination" | "toOrigin") {
+      return rows
+        .map((row, index) => {
+          const value = row[key]?.bestGuess;
+          if (typeof value !== "number") return "";
+          return `${index === 0 ? "M" : "L"} ${x(value).toFixed(2)} ${y(index).toFixed(2)}`;
+        })
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    function bandPathFor(key: "toDestination" | "toOrigin") {
+      const upper = rows
+        .map((row, index) => {
+          const value = row[key]?.pessimistic;
+          if (typeof value !== "number") return "";
+          return `${index === 0 ? "M" : "L"} ${x(value).toFixed(2)} ${y(index).toFixed(2)}`;
+        })
+        .filter(Boolean);
+      const lower = rows
+        .map((row, index) => {
+          const value = row[key]?.optimistic;
+          if (typeof value !== "number") return "";
+          return `L ${x(value).toFixed(2)} ${y(index).toFixed(2)}`;
+        })
+        .filter(Boolean)
+        .reverse();
+      if (!upper.length || !lower.length) return "";
+      return `${upper.join(" ")} ${lower.join(" ")} Z`;
+    }
+
+    const gridLines = Array.from({ length: 4 }, (_, index) => {
+      const value = min + (span / 3) * index;
+      return {
+        value: Math.round(value),
+        x: x(value),
+      };
+    });
+
+    const maxTicks = Math.min(12, rows.length);
+    const tickIndexes = Array.from(
+      new Set(
+        Array.from({ length: maxTicks }, (_, index) =>
+          Math.round(index * ((rows.length - 1) / Math.max(1, maxTicks - 1)))
+        )
+      )
+    );
+
+    return {
+      width,
+      height,
+      pad,
+      plotWidth,
+      plotHeight,
+      gridLines,
+      tickIndexes,
+      toDestinationBand: bandPathFor("toDestination"),
+      toOriginBand: bandPathFor("toOrigin"),
+      toDestinationPath: bestPathFor("toDestination"),
+      toOriginPath: bestPathFor("toOrigin"),
+      points: rows.flatMap((row, index) => {
+        const pointY = y(index);
+        const points: Array<{
+          key: string;
+          x: number;
+          y: number;
+          route: "destination" | "origin";
+          label: string;
+          datetime: string;
+          range: RouteRange;
+        }> = [];
+        if (row.toDestination) {
+          points.push({
+            key: `${row.datetime}-destination-mobile`,
+            x: x(row.toDestination.bestGuess),
+            y: pointY,
+            route: "destination",
+            label: `${origin || "Origin"} to ${destination || "Destination"}`,
+            datetime: row.datetime,
+            range: row.toDestination,
+          });
+        }
+        if (row.toOrigin) {
+          points.push({
+            key: `${row.datetime}-origin-mobile`,
+            x: x(row.toOrigin.bestGuess),
+            y: pointY,
+            route: "origin",
+            label: `${destination || "Destination"} to ${origin || "Origin"}`,
+            datetime: row.datetime,
+            range: row.toOrigin,
+          });
+        }
+        return points;
+      }),
+    };
+  }, [destination, origin, rows]);
+
   return (
     <div className="chart-shell">
       <div className="chart-summary">
@@ -487,7 +606,7 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
         </div>
       </div>
 
-      <div className="chart-scroll">
+      <div className="chart-scroll horizontal-chart">
         <svg className="line-chart" viewBox={`0 0 ${chart.width} ${chart.height}`} role="img" aria-label="Line chart comparing travel time in both directions">
           <rect x="0" y="0" width={chart.width} height={chart.height} rx="8" className="chart-bg" />
           {chart.gridLines.map((line) => (
@@ -528,18 +647,80 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
               tabIndex={0}
               role="img"
               aria-label={`${point.datetime}, ${point.label}, ${formatRouteRange(point.range)}`}
-              onMouseEnter={() => setHover({ x: point.x, y: point.y, datetime: point.datetime, route: point.label, range: point.range })}
+              onMouseEnter={() => setHover({ x: point.x, y: point.y, mode: "horizontal", datetime: point.datetime, route: point.label, range: point.range })}
               onMouseLeave={() => setHover(null)}
-              onFocus={() => setHover({ x: point.x, y: point.y, datetime: point.datetime, route: point.label, range: point.range })}
+              onFocus={() => setHover({ x: point.x, y: point.y, mode: "horizontal", datetime: point.datetime, route: point.label, range: point.range })}
               onBlur={() => setHover(null)}
             />
           ))}
         </svg>
-        {hover ? (
+        {hover?.mode === "horizontal" ? (
           <div
             className="chart-tooltip"
             style={{
               left: `${Math.min(86, Math.max(14, (hover.x / chart.width) * 100))}%`,
+              top: `${Math.max(12, hover.y - 40)}px`,
+            }}
+          >
+            <strong>{hover.datetime}</strong>
+            <span>{hover.route}</span>
+            <span>{formatRouteRange(hover.range)}</span>
+          </div>
+        ) : null}
+      </div>
+      <div className="chart-scroll vertical-chart">
+        <svg className="line-chart vertical-line-chart" viewBox={`0 0 ${verticalChart.width} ${verticalChart.height}`} role="img" aria-label="Vertical line chart comparing travel time in both directions">
+          <rect x="0" y="0" width={verticalChart.width} height={verticalChart.height} rx="8" className="chart-bg" />
+          {verticalChart.gridLines.map((line) => (
+            <g key={line.value}>
+              <line x1={line.x} x2={line.x} y1={verticalChart.pad.top} y2={verticalChart.pad.top + verticalChart.plotHeight} className="grid-line" />
+              <text x={line.x} y={18} textAnchor="middle" className="axis-label axis-time">{line.value}</text>
+            </g>
+          ))}
+          <text x={verticalChart.pad.left} y={18} textAnchor="end" className="axis-title">min</text>
+          <line x1={verticalChart.pad.left} x2={verticalChart.pad.left + verticalChart.plotWidth} y1={verticalChart.pad.top} y2={verticalChart.pad.top} className="axis-line" />
+          <line x1={verticalChart.pad.left} x2={verticalChart.pad.left} y1={verticalChart.pad.top} y2={verticalChart.pad.top + verticalChart.plotHeight} className="axis-line" />
+          {verticalChart.tickIndexes.map((index) => {
+            const y = verticalChart.pad.top + (rows.length === 1 ? 0 : (index / (rows.length - 1)) * verticalChart.plotHeight);
+            const label = axisTickLabel(rows[index]?.datetime ?? "");
+            return (
+              <g key={index}>
+                <line x1={verticalChart.pad.left - 6} x2={verticalChart.pad.left} y1={y} y2={y} className="tick-line" />
+                <text x={verticalChart.pad.left - 10} y={y - 2} textAnchor="end" className="axis-label axis-time">
+                  {label.time}
+                </text>
+                <text x={verticalChart.pad.left - 10} y={y + 13} textAnchor="end" className="axis-label axis-day">
+                  {label.day}
+                </text>
+              </g>
+            );
+          })}
+          <path d={verticalChart.toDestinationBand} className="route-band destination-band" />
+          <path d={verticalChart.toOriginBand} className="route-band origin-band" />
+          <path d={verticalChart.toDestinationPath} className="route-line destination-line" />
+          <path d={verticalChart.toOriginPath} className="route-line origin-line" />
+          {verticalChart.points.map((point) => (
+            <circle
+              key={point.key}
+              cx={point.x}
+              cy={point.y}
+              r="5"
+              className={`route-point ${point.route}-point`}
+              tabIndex={0}
+              role="img"
+              aria-label={`${point.datetime}, ${point.label}, ${formatRouteRange(point.range)}`}
+              onMouseEnter={() => setHover({ x: point.x, y: point.y, mode: "vertical", datetime: point.datetime, route: point.label, range: point.range })}
+              onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover({ x: point.x, y: point.y, mode: "vertical", datetime: point.datetime, route: point.label, range: point.range })}
+              onBlur={() => setHover(null)}
+            />
+          ))}
+        </svg>
+        {hover?.mode === "vertical" ? (
+          <div
+            className="chart-tooltip vertical-tooltip"
+            style={{
+              left: `${Math.min(82, Math.max(26, (hover.x / verticalChart.width) * 100))}%`,
               top: `${Math.max(12, hover.y - 40)}px`,
             }}
           >
