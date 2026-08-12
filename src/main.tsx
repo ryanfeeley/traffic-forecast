@@ -232,6 +232,13 @@ function App() {
               </div>
             </Field>
 
+            <p className="api-key-help">
+              A demo key works for trying the app, but a key from your own Google Cloud account has a higher free daily allowance.{" "}
+              <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
+                Create credentials
+              </a>
+            </p>
+
             <label className="check-row">
               <Checkbox.Root className="check-root" checked={rememberKey} onCheckedChange={(value) => setRememberKey(value === true)}>
                 <Checkbox.Indicator>

@@ -135,6 +135,20 @@ h1 {
   box-shadow: none;
 }
 
+.api-key-help {
+  margin: -6px 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.api-key-help a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .inline {
   display: grid;
   grid-template-columns: 1fr 1fr;
