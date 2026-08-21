@@ -13,6 +13,7 @@ const ORIGIN_STORAGE_KEY = "peak-sneak-origin";
 const DESTINATION_STORAGE_KEY = "peak-sneak-destination";
 
 type TrafficModel = "BEST_GUESS" | "OPTIMISTIC" | "PESSIMISTIC";
+type RouteKey = "destination" | "origin";
 
 type RouteRange = {
   optimistic: number;
@@ -348,6 +349,10 @@ function App() {
 }
 
 function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: string; destination: string }) {
+  const [visibleRoutes, setVisibleRoutes] = useState<Record<RouteKey, boolean>>({
+    destination: true,
+    origin: true,
+  });
   const [hover, setHover] = useState<{
     x: number;
     y: number;
@@ -356,6 +361,11 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
     route: string;
     range: RouteRange;
   } | null>(null);
+
+  function toggleRoute(route: RouteKey) {
+    setHover(null);
+    setVisibleRoutes((current) => ({ ...current, [route]: !current[route] }));
+  }
 
   const chart = useMemo(() => {
     const values = numericValues(rows);
@@ -448,7 +458,7 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
           key: string;
           x: number;
           y: number;
-          route: "destination" | "origin";
+          route: RouteKey;
           label: string;
           datetime: string;
           range: RouteRange;
@@ -566,7 +576,7 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
           key: string;
           x: number;
           y: number;
-          route: "destination" | "origin";
+          route: RouteKey;
           label: string;
           datetime: string;
           range: RouteRange;
@@ -601,16 +611,26 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
   return (
     <div className="chart-shell">
       <div className="chart-summary">
-        <div className="summary-item destination">
-          <span className="legend-dot" />
+        <button
+          type="button"
+          className={`summary-item legend-toggle destination ${visibleRoutes.destination ? "is-visible" : "is-hidden"}`}
+          aria-pressed={visibleRoutes.destination}
+          onClick={() => toggleRoute("destination")}
+        >
+          <span className="legend-dot" aria-hidden="true" />
           <span>{origin} to {destination}</span>
           <strong>{chart.toDestinationMin}–{chart.toDestinationMax} min</strong>
-        </div>
-        <div className="summary-item origin">
-          <span className="legend-dot" />
+        </button>
+        <button
+          type="button"
+          className={`summary-item legend-toggle origin ${visibleRoutes.origin ? "is-visible" : "is-hidden"}`}
+          aria-pressed={visibleRoutes.origin}
+          onClick={() => toggleRoute("origin")}
+        >
+          <span className="legend-dot" aria-hidden="true" />
           <span>{destination} to {origin}</span>
           <strong>{chart.toOriginMin}–{chart.toOriginMax} min</strong>
-        </div>
+        </button>
       </div>
 
       <div className="chart-scroll horizontal-chart">
@@ -640,11 +660,11 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
               </g>
             );
           })}
-          <path d={chart.toDestinationBand} className="route-band destination-band" />
-          <path d={chart.toOriginBand} className="route-band origin-band" />
-          <path d={chart.toDestinationPath} className="route-line destination-line" />
-          <path d={chart.toOriginPath} className="route-line origin-line" />
-          {chart.points.map((point) => (
+          {visibleRoutes.destination ? <path d={chart.toDestinationBand} className="route-band destination-band" /> : null}
+          {visibleRoutes.origin ? <path d={chart.toOriginBand} className="route-band origin-band" /> : null}
+          {visibleRoutes.destination ? <path d={chart.toDestinationPath} className="route-line destination-line" /> : null}
+          {visibleRoutes.origin ? <path d={chart.toOriginPath} className="route-line origin-line" /> : null}
+          {chart.points.filter((point) => visibleRoutes[point.route]).map((point) => (
             <circle
               key={point.key}
               cx={point.x}
@@ -702,11 +722,11 @@ function LineChart({ rows, origin, destination }: { rows: ResultRow[]; origin: s
               </g>
             );
           })}
-          <path d={verticalChart.toDestinationBand} className="route-band destination-band" />
-          <path d={verticalChart.toOriginBand} className="route-band origin-band" />
-          <path d={verticalChart.toDestinationPath} className="route-line destination-line" />
-          <path d={verticalChart.toOriginPath} className="route-line origin-line" />
-          {verticalChart.points.map((point) => (
+          {visibleRoutes.destination ? <path d={verticalChart.toDestinationBand} className="route-band destination-band" /> : null}
+          {visibleRoutes.origin ? <path d={verticalChart.toOriginBand} className="route-band origin-band" /> : null}
+          {visibleRoutes.destination ? <path d={verticalChart.toDestinationPath} className="route-line destination-line" /> : null}
+          {visibleRoutes.origin ? <path d={verticalChart.toOriginPath} className="route-line origin-line" /> : null}
+          {verticalChart.points.filter((point) => visibleRoutes[point.route]).map((point) => (
             <circle
               key={point.key}
               cx={point.x}
